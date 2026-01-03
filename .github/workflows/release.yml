@@ -92,6 +92,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
+    permissions:
+      contents: write
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -126,7 +128,7 @@ jobs:
           artifacts/wb2-cli-*/wb2-cli-${{ steps.get_version.outputs.version }}-*.tar.gz
           artifacts/wb2-cli-*/wb2-cli-${{ steps.get_version.outputs.version }}-*.zip
           wb2-cli-${{ steps.get_version.outputs.version }}-source.tar.gz
-          artifacts/wb2-cli-linux-amd64/wb2-cli-${{ steps.get_version.outputs.version }}-checksums.txt
+          artifacts/wb2-cli-${{ steps.get_version.outputs.version }}-checksums.txt
         body: |
           ## 🚀 wb2-cli ${{ steps.get_version.outputs.version }}
 

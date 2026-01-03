@@ -1,0 +1,285 @@
+/**
+ * @file main.c
+ * @brief {{ .ProjectName }} 主程序
+ * @date 2026-01-01
+ */
+
+#include <FreeRTOS.h>
+#include <task.h>
+#include <stdio.h>
+#include <string.h>
+#include "blog.h"
+{{- if .HasGPIO }}
+#include <bl_gpio.h>
+{{- end }}
+{{- if .HasUART }}
+#include <hosal_uart.h>
+{{- end }}
+{{- if .HasI2C }}
+#include <hosal_i2c.h>
+{{- end }}
+{{- if .HasSPI }}
+#include <hosal_spi.h>
+{{- end }}
+{{- if .HasPWM }}
+#include <bl_pwm.h>
+{{- end }}
+{{- if .HasADC }}
+#include <hosal_adc.h>
+{{- end }}
+{{- if .HasTimer }}
+#include <hosal_timer.h>
+{{- end }}
+{{- if .HasWifi }}
+#include <aos/yloop.h>
+#include <aos/kernel.h>
+#include <lwip/tcpip.h>
+#include <wifi_mgmr_ext.h>
+#include <hal_wifi.h>
+{{- end }}
+{{- if .HasSmartconfig }}
+#include <smartconfig.h>
+{{- end }}
+{{- if .HasBlufi }}
+#include "blufi.h"
+{{- end }}
+
+{{- if and .HasWifi (not .HasSmartconfig) (not .HasBlufi) }}
+#define ROUTER_SSID "your_wifi_ssid"
+#define ROUTER_PWD "your_wifi_password"
+{{- end }}
+{{- if .HasGPIO }}
+#define GPIO_LED_PIN 14
+#define GPIO_BUTTON_PIN 8
+{{- end }}
+{{- if .HasSPI }}
+#define SPI_CLK_PIN 3
+#define SPI_MOSI_PIN 12
+#define SPI_MISO_PIN 17
+#define SPI_CS_PIN 4
+{{- end }}
+{{- if .HasTimer }}
+#define TIMER_PERIOD_US 1000000  // 1秒
+{{- end }}
+
+{{- if .HasWifi }}
+static wifi_conf_t conf = {
+    .country_code = "CN",
+};
+
+{{- if and .HasWifi (not .HasSmartconfig) (not .HasBlufi) }}
+/* 静态 Wi-Fi 连接方式 */
+static void wifi_sta_connect(char* ssid, char* password)
+{
+    wifi_interface_t wifi_interface;
+    wifi_interface = wifi_mgmr_sta_enable();
+    wifi_mgmr_sta_connect(wifi_interface, ssid, password, NULL, NULL, 0, 0);
+}
+{{- end }}
+
+{{- if .HasSmartconfig }}
+/* SmartConfig 配网方式 */
+/* 注意：smartconfig 头文件来自 SDK 的 components/network/smartconfig_airkiss */
+/* 使用 wifi_smartconfig_v1_start() 启动配网，使用 wifi_smartconfig_v1_stop() 停止配网 */
+{{- end }}
+{{- if .HasBlufi }}
+/* BluFi 配网方式 - 通过蓝牙进行 Wi-Fi 配网 */
+/* BluFi 配网由蓝牙事件自动处理，无需额外代码 */
+{{- end }}
+
+static void event_cb_wifi_event(input_event_t* event, void* private_data)
+{
+    switch (event->code)
+    {
+        case CODE_WIFI_ON_INIT_DONE:
+        {
+            blog_info("[APP] [EVT] INIT DONE %lld", aos_now_ms());
+            wifi_mgmr_start_background(&conf);
+        }
+        break;
+        case CODE_WIFI_ON_MGMR_DONE:
+        {
+            blog_info("[APP] [EVT] MGMR DONE %lld", aos_now_ms());
+            {{- if .HasSmartconfig }}
+            /* 启动 SmartConfig 配网 */
+            blog_info("Starting smartconfig...");
+            wifi_smartconfig_v1_start();
+            {{- else if .HasBlufi }}
+            /* BluFi 配网已通过蓝牙启动 */
+            blog_info("BluFi provisioning ready");
+            {{- else }}
+            /* 静态 Wi-Fi 连接 */
+            wifi_sta_connect(ROUTER_SSID, ROUTER_PWD);
+            {{- end }}
+        }
+        break;
+        case CODE_WIFI_ON_CONNECTED:
+        {
+            blog_info("[APP] [EVT] connected %lld", aos_now_ms());
+        }
+        break;
+        case CODE_WIFI_ON_GOT_IP:
+        {
+            blog_info("[APP] [EVT] GOT IP %lld", aos_now_ms());
+            blog_info("[SYS] Memory left is %d Bytes", xPortGetFreeHeapSize());
+            {{- if .HasSmartconfig }}
+            /* SmartConfig 配网成功后，配网会自动停止 */
+            /* 如果需要手动停止，可以调用 wifi_smartconfig_v1_stop() */
+            {{- end }}
+            {{- if or .HasGPIO .HasSPI .HasTimer }}
+            /* Wi-Fi 连接成功后，初始化外设 */
+            {{- if .HasGPIO }}
+            gpio_init();
+            {{- end }}
+            {{- if .HasSPI }}
+            spi_init();
+            {{- end }}
+            {{- if .HasTimer }}
+            timer_init();
+            {{- end }}
+            {{- end }}
+        }
+        break;
+        case CODE_WIFI_ON_DISCONNECT:
+        {
+            blog_info("[APP] [EVT] disconnect %lld", aos_now_ms());
+        }
+        break;
+        default:
+            break;
+    }
+}
+
+static void proc_main_entry(void* pvParameters)
+{
+    aos_register_event_filter(EV_WIFI, event_cb_wifi_event, NULL);
+    hal_wifi_start_firmware_task();
+    aos_post_event(EV_WIFI, CODE_WIFI_ON_INIT_DONE, 0);
+    vTaskDelete(NULL);
+}
+{{- end }}
+
+{{- if .HasGPIO }}
+static void gpio_init(void)
+{
+    /* GPIO 初始化 */
+    bl_gpio_enable_output(GPIO_LED_PIN, 0, 0);
+    bl_gpio_output_set(GPIO_LED_PIN, 0);
+    bl_gpio_enable_input(GPIO_BUTTON_PIN, 0, 0);
+    {{- if or .HasUART .HasI2C .HasSPI }}
+    /* 其他外设可能需要 GPIO，在这里初始化 */
+    {{- end }}
+    blog_info("GPIO initialized");
+}
+{{- end }}
+
+{{- if .HasSPI }}
+static void spi_init(void)
+{
+    /* SPI 初始化示例 */
+    /* 注意：实际使用时需要根据硬件配置调整引脚和参数 */
+    blog_info("SPI initialization - please configure pins and parameters");
+    {{- if .HasGPIO }}
+    /* SPI 通常需要 GPIO 作为 CS 引脚 */
+    bl_gpio_enable_output(SPI_CS_PIN, 0, 0);
+    bl_gpio_output_set(SPI_CS_PIN, 1);  // CS 高电平
+    {{- end }}
+}
+{{- end }}
+
+{{- if .HasTimer }}
+static hosal_timer_dev_t timer0;
+{{- if .HasGPIO }}
+static void timer_cb(void *arg)
+{
+    static int led_state = 0;
+    led_state = !led_state;
+    bl_gpio_output_set(GPIO_LED_PIN, led_state);
+}
+{{- end }}
+
+static void timer_init(void)
+{
+    timer0.config.arg = NULL;
+    {{- if .HasGPIO }}
+    timer0.config.cb = timer_cb;
+    {{- else }}
+    timer0.config.cb = NULL;  // 请设置您的定时器回调函数
+    {{- end }}
+    timer0.config.period = TIMER_PERIOD_US;  // 定时周期（微秒）
+    timer0.config.reload_mode = TIMER_RELOAD_PERIODIC;
+    timer0.port = 0;
+    
+    hosal_timer_init(&timer0);
+    hosal_timer_start(&timer0);
+    blog_info("Timer initialized");
+}
+{{- end }}
+
+static void system_thread_init()
+{
+    /* 系统初始化 */
+    {{- if and .HasGPIO (not .HasWifi) }}
+    gpio_init();
+    {{- end }}
+    {{- if and .HasSPI (not .HasWifi) }}
+    spi_init();
+    {{- end }}
+    {{- if and .HasTimer (not .HasWifi) }}
+    timer_init();
+    {{- end }}
+}
+
+void main()
+{
+    system_thread_init();
+    {{- if .HasWifi }}
+    puts("[OS] Starting TCP/IP Stack...");
+    tcpip_init(NULL, NULL);
+    puts("[OS] proc_main_entry task...");
+    xTaskCreate(proc_main_entry, (char*)"main_entry", 1024, NULL, 15, NULL);
+    {{- if or .HasGPIO .HasSPI .HasTimer }}
+    /* 外设将在 Wi-Fi 连接成功后初始化（在 event_cb_wifi_event 中） */
+    {{- end }}
+    /* 主循环 - Wi-Fi 模式下，外设通过事件回调或定时器处理 */
+    for (;;) {
+        {{- if and .HasGPIO (not .HasTimer) }}
+        /* 如果没有定时器，在主循环中处理 GPIO */
+        {{- if .HasGPIO }}
+        if (bl_gpio_input_get_value(GPIO_BUTTON_PIN)) {
+            bl_gpio_output_set(GPIO_LED_PIN, 1);
+        } else {
+            bl_gpio_output_set(GPIO_LED_PIN, 0);
+        }
+        {{- end }}
+        vTaskDelay(pdMS_TO_TICKS(10));
+        {{- else }}
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        {{- end }}
+    }
+    {{- else }}
+    blog_info("{{ .ProjectName }} started");
+    
+    {{- if .HasGPIO }}
+    /* GPIO 示例：LED 闪烁 */
+    {{- end }}
+    {{- if .HasTimer }}
+    /* Timer 将自动控制 LED（如果同时选择了 GPIO） */
+    {{- end }}
+    for (;;) {
+        {{- if and .HasGPIO (not .HasTimer) }}
+        /* LED 闪烁示例（无定时器时） */
+        bl_gpio_output_set(GPIO_LED_PIN, 1);
+        vTaskDelay(pdMS_TO_TICKS(500));
+        bl_gpio_output_set(GPIO_LED_PIN, 0);
+        vTaskDelay(pdMS_TO_TICKS(500));
+        {{- else if .HasTimer }}
+        /* 定时器模式下，LED 由定时器回调控制 */
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        {{- else }}
+        blog_info("Hello from {{ .ProjectName }}!");
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        {{- end }}
+    }
+    {{- end }}
+}

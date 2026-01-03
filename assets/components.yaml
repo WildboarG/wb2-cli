@@ -1,0 +1,371 @@
+components:
+  # ========== 网络组件 ==========
+  - name: wifi
+    category: network
+    description: Wi-Fi 连接功能（Station/AP 模式）
+    dependencies: []
+    include_components:
+      - wifi
+      - wifi_manager
+      - wpa_supplicant
+      - bl_os_adapter
+      - wifi_hosal
+      - lwip_dhcpd
+      - netutils
+      - blcrypto_suite
+      - rfparam_adapter_tmp
+    network_components:
+      - sntp
+      - dns_server
+    blsys_components:
+      - blota
+      - loopadc
+    config_flags:
+      CONFIG_WIFI: "1"
+    template_files:
+      - wifi/wifi_init.c.tmpl
+
+  - name: mqtt
+    category: network
+    description: MQTT 客户端功能
+    dependencies:
+      - wifi
+    include_components:
+      - httpc
+    mqtt_components:
+      - axk_common
+      - tcp_transport
+      - http-parser
+      - axk_tls
+      - axk_mqtt
+    template_files:
+      - mqtt/mqtt_client.c.tmpl
+
+  - name: http_client
+    category: network
+    description: HTTP 客户端功能
+    dependencies:
+      - wifi
+    include_components:
+      - httpc
+    template_files:
+      - http/http_client.c.tmpl
+
+  - name: http_server
+    category: network
+    description: HTTP 服务器功能
+    dependencies:
+      - wifi
+    include_components:
+      - httpd
+      - lwip_mdns
+    template_files:
+      - http/http_server.c.tmpl
+
+  - name: ble
+    category: network
+    description: BLE 蓝牙功能
+    dependencies: []
+    include_components:
+      - bl602_os_adapter
+    config_flags:
+      CONFIG_BT_CENTRAL: "1"
+      CONFIG_BT_OBSERVER: "1"
+      CONFIG_BT_PERIPHERAL: "1"
+      CONFIG_BT_STACK_CLI: "1"
+    template_files:
+      - ble/ble_init.c.tmpl
+
+  - name: blufi
+    category: network
+    description: 蓝牙配网功能（BluFi）
+    dependencies:
+      - ble
+      - wifi
+    include_components:
+      - blufi
+    config_flags:
+      CONFIG_BT_WIFIPROV_SERVER: "1"
+    template_files:
+      - network/blufi_init.c.tmpl
+
+  - name: smartconfig
+    category: network
+    description: 智能配网功能（SmartConfig/AirKiss）
+    dependencies:
+      - wifi
+    include_components:
+      - smartconfig_airkiss
+    template_files:
+      - network/smartconfig_init.c.tmpl
+
+  - name: https
+    category: network
+    description: HTTPS 客户端功能
+    dependencies:
+      - wifi
+    include_components:
+      - https
+      - mbedtls_lts
+    template_files:
+      - network/https_client.c.tmpl
+
+  - name: lwip_tls
+    category: network
+    description: LwIP TLS 支持（AltTCP TLS）
+    dependencies:
+      - wifi
+    include_components:
+      - lwip_altcp_tls_mbedtls
+      - mbedtls_lts
+    template_files:
+      - network/lwip_tls_init.c.tmpl
+
+  - name: wifi_bt_coex
+    category: network
+    description: Wi-Fi 和蓝牙共存功能
+    dependencies:
+      - wifi
+      - ble
+    include_components:
+      - wifi_bt_coex
+    config_flags:
+      CONFIG_WIFI: "1"
+      CONFIG_BT_CENTRAL: "1"
+      CONFIG_BT_PERIPHERAL: "1"
+    template_files:
+      - network/wifi_bt_coex_init.c.tmpl
+
+  - name: dev_info
+    category: network
+    description: 设备信息功能
+    dependencies: []
+    include_components:
+      - dev_info
+    template_files:
+      - network/dev_info_init.c.tmpl
+
+  - name: dns_server
+    category: network
+    description: DNS 服务器功能
+    dependencies:
+      - wifi
+    network_components:
+      - dns_server
+    template_files:
+      - network/dns_server_init.c.tmpl
+
+  - name: sntp
+    category: network
+    description: SNTP 时间同步功能
+    dependencies:
+      - wifi
+    network_components:
+      - sntp
+    template_files:
+      - network/sntp_init.c.tmpl
+
+  - name: mdns
+    category: network
+    description: mDNS 服务发现功能
+    dependencies:
+      - wifi
+    include_components:
+      - lwip_mdns
+    template_files:
+      - network/mdns_init.c.tmpl
+
+  - name: thread
+    category: network
+    description: Thread 协议栈（802.15.4）
+    dependencies: []
+    include_components:
+      - thread
+    config_flags:
+      CONFIG_THREAD_ENABLE: "1"
+    template_files:
+      - network/thread_init.c.tmpl
+
+  - name: lmac154
+    category: network
+    description: 802.15.4 MAC 层功能
+    dependencies: []
+    include_components:
+      - lmac154
+    config_flags:
+      CONFIG_LMAC154_ENABLE: "1"
+    template_files:
+      - network/lmac154_init.c.tmpl
+
+  # ========== 外设组件 ==========
+  - name: gpio
+    category: peripheral
+    description: GPIO 外设功能
+    dependencies: []
+    template_files:
+      - peripherals/gpio_demo.c.tmpl
+
+  - name: uart
+    category: peripheral
+    description: UART 串口功能
+    dependencies: []
+    template_files:
+      - peripherals/uart_demo.c.tmpl
+
+  - name: i2c
+    category: peripheral
+    description: I2C 外设功能
+    dependencies: []
+    template_files:
+      - peripherals/i2c_demo.c.tmpl
+
+  - name: spi
+    category: peripheral
+    description: SPI 外设功能
+    dependencies: []
+    template_files:
+      - peripherals/spi_demo.c.tmpl
+
+  - name: pwm
+    category: peripheral
+    description: PWM 功能
+    dependencies: []
+    template_files:
+      - peripherals/pwm_demo.c.tmpl
+
+  - name: adc
+    category: peripheral
+    description: ADC 功能
+    dependencies: []
+    template_files:
+      - peripherals/adc_demo.c.tmpl
+
+  - name: timer
+    category: peripheral
+    description: 定时器功能
+    dependencies: []
+    template_files:
+      - peripherals/timer_demo.c.tmpl
+
+  # ========== 第三方组件 ==========
+  - name: aws_iot
+    category: 3rdparty
+    description: AWS IoT 设备 SDK
+    dependencies:
+      - wifi
+    include_components:
+      - aws-iot
+    template_files:
+      - 3rdparty/aws_iot_init.c.tmpl
+
+  - name: http_parser
+    category: 3rdparty
+    description: HTTP 解析器（http-parser）
+    dependencies: []
+    include_components:
+      - http-parser
+    template_files:
+      - 3rdparty/http_parser_demo.c.tmpl
+
+  # ========== 音频组件 ==========
+  - name: audio_device
+    category: audio
+    description: 音频设备驱动（DAC/I2S）
+    dependencies: []
+    include_components:
+      - audio_device
+    template_files:
+      - audio/audio_device_init.c.tmpl
+
+  - name: audio_framework
+    category: audio
+    description: 音频框架
+    dependencies:
+      - audio_device
+    include_components:
+      - audio_framework
+    template_files:
+      - audio/audio_framework_init.c.tmpl
+
+  # ========== 文件系统组件 ==========
+  - name: romfs
+    category: fs
+    description: ROM 文件系统
+    dependencies: []
+    vfs_components:
+      - romfs
+    config_flags:
+      CONFIG_ENABLE_VFS_ROMFS: "1"
+    template_files:
+      - fs/romfs_init.c.tmpl
+
+  - name: vfs
+    category: fs
+    description: 虚拟文件系统（VFS）
+    dependencies: []
+    include_components:
+      - vfs
+    config_flags:
+      CONFIG_SYS_VFS_ENABLE: "1"
+    template_files:
+      - fs/vfs_init.c.tmpl
+
+  - name: spiffs
+    category: fs
+    description: SPIFFS 文件系统
+    dependencies: []
+    include_components:
+      - spiffs
+    template_files:
+      - fs/spiffs_init.c.tmpl
+
+  # ========== 多媒体组件 ==========
+  - name: jpeg_encoder
+    category: multimedia
+    description: JPEG 编码器（单色）
+    dependencies: []
+    include_components:
+      - jpeg_encoder_mono
+    template_files:
+      - multimedia/jpeg_encoder_init.c.tmpl
+
+  - name: jpeg_decoder
+    category: multimedia
+    description: JPEG 解码器（TinyJPEG）
+    dependencies: []
+    include_components:
+      - tjpgd1d
+    template_files:
+      - multimedia/jpeg_decoder_init.c.tmpl
+
+  # ========== 系统组件 ==========
+  - name: storage
+    category: system
+    description: 存储功能（Flash/EasyFlash）
+    dependencies: []
+    include_components:
+      - easyflash4
+    vfs_components:
+      - easyflash4
+    config_flags:
+      CONFIG_EASYFLASH_ENABLE: "1"
+    template_files:
+      - storage/storage_init.c.tmpl
+
+  - name: cjson
+    category: system
+    description: JSON 解析功能（cJSON）
+    dependencies: []
+    vfs_components:
+      - cjson
+    template_files:
+      - utils/cjson_demo.c.tmpl
+
+  - name: lvgl
+    category: system
+    description: LVGL 图形界面库
+    dependencies: []
+    include_components:
+      - lvgl
+    template_files:
+      - gui/lvgl_init.c.tmpl

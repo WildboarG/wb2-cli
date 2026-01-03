@@ -1,0 +1,40 @@
+#
+# This is a project Makefile. It is assumed the directory this Makefile resides in is a
+# project subdirectory.
+#
+
+PROJECT_NAME := {{ .ProjectName }}
+PROJECT_PATH := $(abspath .)
+PROJECT_BOARD := evb
+export PROJECT_PATH PROJECT_BOARD
+#CONFIG_TOOLPREFIX :=
+
+-include ./proj_config.mk
+
+ifeq ($(origin BL60X_SDK_PATH), undefined)
+BL60X_SDK_PATH_GUESS ?= $(shell pwd)
+BL60X_SDK_PATH ?= {{ .SDKPath }}
+$(info ****** SDK PATH [$(BL60X_SDK_PATH)])
+endif
+
+{{- if .NetworkComps }}
+COMPONENTS_NETWORK := {{ range $index, $comp := .NetworkComps }}{{ if $index }} {{ end }}{{ $comp }}{{ end }}
+{{- end }}
+COMPONENTS_BLSYS   := {{ range $index, $comp := .BLSysComps }}{{ if $index }} {{ end }}{{ $comp }}{{ end }}
+COMPONENTS_VFS     := {{ range $index, $comp := .VFSComps }}{{ if $index }} {{ end }}{{ $comp }}{{ end }}
+{{- if .MQTTComps }}
+COMPONENTS_MQTT    := {{ range $index, $comp := .MQTTComps }}{{ if $index }} {{ end }}{{ $comp }}{{ end }}
+{{- end }}
+
+INCLUDE_COMPONENTS += {{ range $index, $comp := .IncludeComps }}{{ if $index }} {{ end }}{{ $comp }}{{ end }}
+{{- if .NetworkComps }}
+INCLUDE_COMPONENTS += $(COMPONENTS_NETWORK)
+{{- end }}
+INCLUDE_COMPONENTS += $(COMPONENTS_BLSYS)
+INCLUDE_COMPONENTS += $(COMPONENTS_VFS)
+{{- if .MQTTComps }}
+INCLUDE_COMPONENTS += $(COMPONENTS_MQTT)
+{{- end }}
+INCLUDE_COMPONENTS += $(PROJECT_NAME)
+
+include $(BL60X_SDK_PATH)/make_scripts_riscv/project.mk

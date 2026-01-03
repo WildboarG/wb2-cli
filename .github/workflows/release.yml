@@ -1,0 +1,190 @@
+name: Release
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Run tests
+      run: go test -v ./...
+
+    - name: Run go vet
+      run: go vet ./...
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Get version
+      id: get_version
+      run: |
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/}
+        elif [[ $GITHUB_REF == refs/heads/* ]]; then
+          VERSION=$(echo ${GITHUB_REF#refs/heads/} | sed 's/\//-/g')
+        else
+          VERSION="snapshot"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Build binary
+      run: |
+        GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build \
+          -ldflags="-X main.version=${{ steps.get_version.outputs.version }}" \
+          -o wb2-cli-${{ matrix.goos }}-${{ matrix.goarch }} \
+          ${{ matrix.goos == 'windows' && '.exe' || '' }} \
+          .
+
+    - name: Create archive
+      run: |
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          zip wb2-cli-${{ steps.get_version.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}.zip wb2-cli-${{ matrix.goos }}-${{ matrix.goarch }}.exe
+        else
+          tar -czf wb2-cli-${{ steps.get_version.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz wb2-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+        fi
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: wb2-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: wb2-cli-${{ steps.get_version.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Get version
+      id: get_version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Create source archive
+      run: |
+        git archive --format=tar.gz -o wb2-cli-${{ steps.get_version.outputs.version }}-source.tar.gz --prefix=wb2-cli-${{ steps.get_version.outputs.version }}/ HEAD
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Create checksums
+      run: |
+        cd artifacts
+        find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec sha256sum {} \; > wb2-cli-${{ steps.get_version.outputs.version }}-checksums.txt
+        cat wb2-cli-${{ steps.get_version.outputs.version }}-checksums.txt
+
+    - name: Create release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          artifacts/wb2-cli-*/wb2-cli-${{ steps.get_version.outputs.version }}-*.tar.gz
+          artifacts/wb2-cli-*/wb2-cli-${{ steps.get_version.outputs.version }}-*.zip
+          wb2-cli-${{ steps.get_version.outputs.version }}-source.tar.gz
+          artifacts/wb2-cli-linux-amd64/wb2-cli-${{ steps.get_version.outputs.version }}-checksums.txt
+        body: |
+          ## 🚀 wb2-cli ${{ steps.get_version.outputs.version }}
+
+          Ai-Thinker WB2 芯片项目快速生成工具
+
+          ### ✨ 功能特性
+
+          - 🏗️ 快速创建 WB2 项目框架
+          - 📦 交互式组件选择（类似 menuconfig）
+          - 🔗 自动解析组件依赖关系
+          - 📝 自动生成项目文件
+          - 🎯 支持多种 Wi-Fi 配网方式
+          - 🖥️ 跨平台支持（Linux、macOS、Windows）
+
+          ### 📦 下载
+
+          | 平台 | 架构 | 文件 |
+          |------|------|------|
+          | Linux | AMD64 | `wb2-cli-${{ steps.get_version.outputs.version }}-linux-amd64.tar.gz` |
+          | Linux | ARM64 | `wb2-cli-${{ steps.get_version.outputs.version }}-linux-arm64.tar.gz` |
+          | Windows | AMD64 | `wb2-cli-${{ steps.get_version.outputs.version }}-windows-amd64.zip` |
+          | macOS | AMD64 | `wb2-cli-${{ steps.get_version.outputs.version }}-darwin-amd64.tar.gz` |
+          | macOS | ARM64 | `wb2-cli-${{ steps.get_version.outputs.version }}-darwin-arm64.tar.gz` |
+          | 源码 | - | `wb2-cli-${{ steps.get_version.outputs.version }}-source.tar.gz` |
+
+          ### 🔐 校验
+
+          下载 `wb2-cli-${{ steps.get_version.outputs.version }}-checksums.txt` 来验证文件完整性。
+
+          ### 🛠️ 安装
+
+          #### Linux/macOS
+          ```bash
+          # 下载并解压
+          wget https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/wb2-cli-${{ steps.get_version.outputs.version }}-linux-amd64.tar.gz
+          tar -xzf wb2-cli-${{ steps.get_version.outputs.version }}-linux-amd64.tar.gz
+          sudo mv wb2-cli-linux-amd64 /usr/local/bin/wb2-cli
+          ```
+
+          #### Windows
+          ```powershell
+          # 下载并解压
+          Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/wb2-cli-${{ steps.get_version.outputs.version }}-windows-amd64.zip" -OutFile "wb2-cli.zip"
+          Expand-Archive -Path "wb2-cli.zip" -DestinationPath "."
+          # 添加到 PATH 或直接使用
+          ```
+
+          ### 📋 使用方法
+
+          ```bash
+          # 创建新项目
+          wb2-cli new my_project
+
+          # 指定 SDK 路径
+          wb2-cli new my_project --sdk-path /path/to/sdk
+          ```
+
+          查看 [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) 了解更多信息。
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

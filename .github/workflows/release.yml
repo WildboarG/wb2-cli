@@ -82,11 +82,17 @@ jobs:
           tar -czf wb2-cli-${{ steps.get_version.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz wb2-cli-${{ matrix.goos }}-${{ matrix.goarch }}
         fi
 
-    - name: Upload artifacts
+    - name: Upload compressed artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: wb2-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+        name: wb2-cli-${{ matrix.goos }}-${{ matrix.goarch }}-archive
         path: wb2-cli-${{ steps.get_version.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}*
+
+    - name: Upload binary artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: wb2-cli-${{ matrix.goos }}-${{ matrix.goarch }}-binary
+        path: wb2-cli-${{ steps.get_version.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
 
   release:
     needs: build
@@ -118,15 +124,16 @@ jobs:
     - name: Create checksums
       run: |
         cd artifacts
-        find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec sha256sum {} \; > wb2-cli-${{ steps.get_version.outputs.version }}-checksums.txt
+        find . -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "wb2-cli-*" \) ! -name "*-checksums.txt" -exec sha256sum {} \; > wb2-cli-${{ steps.get_version.outputs.version }}-checksums.txt
         cat wb2-cli-${{ steps.get_version.outputs.version }}-checksums.txt
 
     - name: Create release
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          artifacts/wb2-cli-*/wb2-cli-${{ steps.get_version.outputs.version }}-*.tar.gz
-          artifacts/wb2-cli-*/wb2-cli-${{ steps.get_version.outputs.version }}-*.zip
+          artifacts/wb2-cli-*-archive/wb2-cli-${{ steps.get_version.outputs.version }}-*.tar.gz
+          artifacts/wb2-cli-*-archive/wb2-cli-${{ steps.get_version.outputs.version }}-*.zip
+          artifacts/wb2-cli-*-binary/wb2-cli-${{ steps.get_version.outputs.version }}-*
           wb2-cli-${{ steps.get_version.outputs.version }}-source.tar.gz
           artifacts/wb2-cli-${{ steps.get_version.outputs.version }}-checksums.txt
         body: |
